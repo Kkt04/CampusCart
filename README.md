@@ -110,4 +110,3 @@ Visit **http://localhost:5173** — the site is live.
   and update `CLIENT_URL` / `VITE_API_URL` accordingly.
 
 Built for the campus. Ship it. 🚀
-# CampusCart
