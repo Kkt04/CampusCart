@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api, { API_URL, cropStyle } from "../api";
 import { useAuth } from "../context/AuthContext";
+import PaymentModal from "../components/PaymentModal";
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -10,6 +11,7 @@ export default function ListingDetail() {
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -19,6 +21,14 @@ export default function ListingDetail() {
       .catch(() => setError("Listing not found"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleBuyClick = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    setShowPayment(true);
+  };
 
   const handleChat = async () => {
     if (!user) {
@@ -106,12 +116,10 @@ export default function ListingDetail() {
                 {listing.status === "available" && (
                   <button
                     className="btn btn-primary btn-block"
-                    onClick={handleChat}
+                    onClick={handleBuyClick}
                     disabled={starting}
                   >
-                    {starting
-                      ? "Starting chat..."
-                      : listing.type === "buy"
+                    {listing.type === "buy"
                       ? `🛒 Buy this for ₹${listing.price}`
                       : `🔑 Rent this for ₹${listing.price}/${listing.rentDuration?.replace("per ", "")}`}
                   </button>
@@ -133,6 +141,18 @@ export default function ListingDetail() {
           </div>
         </div>
       </div>
+      {showPayment && (
+        <PaymentModal
+          listing={listing}
+          onClose={() => setShowPayment(false)}
+          onPaid={() => {
+            api
+              .get(`/listings/${id}`)
+              .then((res) => setListing(res.data))
+              .catch(() => {});
+          }}
+        />
+      )}
     </div>
   );
 }
