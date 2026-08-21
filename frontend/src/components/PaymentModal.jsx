@@ -1,110 +1,44 @@
-import { useEffect, useState } from "react";
-import api from "../api";
+import { useState } from "react";
 
 const METHODS = [
-  { id: "upi", icon: "📱", label: "UPI", sub: "GPay, PhonePe, Paytm & more" },
+  { id: "upi", icon: "📱", label: "UPI", sub: "Pay via any UPI app" },
   { id: "card", icon: "💳", label: "Card", sub: "Credit / debit card" },
   { id: "cod", icon: "💵", label: "Cash on Delivery", sub: "Pay cash at pickup" },
 ];
 
-function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
-export default function PaymentModal({ listing, onClose, onPaid }) {
+export default function PaymentModal({ listing, onClose }) {
   const isRent = listing.type === "rent";
   const total = listing.price;
 
   const [step, setStep] = useState("form");
   const [method, setMethod] = useState("upi");
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null);
+  const [upiId, setUpiId] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardName, setCardName] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [orderId] = useState(() => `CC-${Math.random().toString(36).slice(2, 8).toUpperCase()}`);
 
-  useEffect(() => {
-    loadRazorpayScript();
-  }, []);
+  const formatCardNumber = (v) =>
+    v.replace(/\D/g, "").slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ");
 
-  const handleOnlinePay = async () => {
-    setError("");
-    setStep("processing");
-
-    try {
-      const loaded = await loadRazorpayScript();
-      if (!loaded) throw new Error("Could not load payment gateway. Check your connection.");
-
-      const order = await api.post("/payments/create-order", {
-        listingId: listing._id,
-        method,
-      });
-
-      const options = {
-        key: order.data.keyId,
-        amount: order.data.amount,
-        currency: order.data.currency,
-        order_id: order.data.orderId,
-        name: "CampusCart",
-        description: listing.title,
-        image: "/favicon.ico",
-        prefill: { method },
-        notes: { listingId: listing._id },
-        theme: { color: "#f4a300" },
-        handler: async (response) => {
-          try {
-            const verify = await api.post("/payments/verify", {
-              paymentId: order.data.paymentId,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            setResult(verify.data);
-            setStep("success");
-            if (onPaid) onPaid();
-          } catch (err) {
-            setError(err.response?.data?.message || "Payment verification failed.");
-            setStep("form");
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            setError("Payment cancelled.");
-            setStep("form");
-          },
-        },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.open();
-    } catch (err) {
-      setError(err.response?.data?.message || err.message || "Could not start payment.");
-      setStep("form");
-    }
+  const formatExpiry = (v) => {
+    const digits = v.replace(/\D/g, "").slice(0, 4);
+    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
   };
 
-  const handleCod = async () => {
-    setError("");
-    setStep("processing");
-
-    try {
-      const res = await api.post("/payments/cod", { listingId: listing._id });
-      setResult(res.data);
-      setStep("success");
-      if (onPaid) onPaid();
-    } catch (err) {
-      setError(err.response?.data?.message || "Could not place order.");
-      setStep("form");
-    }
-  };
+  const canPay =
+    method === "cod" ||
+    (method === "upi" && upiId.trim().length > 0) ||
+    (method === "card" &&
+      cardNumber.replace(/\s/g, "").length >= 12 &&
+      cardName.trim().length > 0 &&
+      expiry.length === 5 &&
+      cvv.length >= 3);
 
   const handlePay = () => {
-    if (method === "cod") return handleCod();
-    return handleOnlinePay();
+    setStep("processing");
+    setTimeout(() => setStep("success"), 1800);
   };
 
   const payLabel = () => {
@@ -121,9 +55,7 @@ export default function PaymentModal({ listing, onClose, onPaid }) {
             <h3 className="modal-title">
               {isRent ? "Complete your rental" : "Complete your purchase"}
             </h3>
-            <p className="modal-sub">
-              Secured by Razorpay · 5% platform fee supports CampusCart.
-            </p>
+            <p className="modal-sub">Demo checkout — no real money moves.</p>
 
             <div className="pay-summary">
               <div className="pay-summary-row">
@@ -155,14 +87,73 @@ export default function PaymentModal({ listing, onClose, onPaid }) {
               ))}
             </div>
 
+            {method === "upi" && (
+              <div className="pay-fields">
+                <label className="pay-label">UPI ID</label>
+                <input
+                  className="pay-input"
+                  placeholder="yourname@upi"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  disabled={step === "processing"}
+                />
+              </div>
+            )}
+
+            {method === "card" && (
+              <div className="pay-fields">
+                <label className="pay-label">Card number</label>
+                <input
+                  className="pay-input"
+                  placeholder="1234 5678 9012 3456"
+                  inputMode="numeric"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                  disabled={step === "processing"}
+                />
+                <label className="pay-label">Name on card</label>
+                <input
+                  className="pay-input"
+                  placeholder="Full name"
+                  value={cardName}
+                  onChange={(e) => setCardName(e.target.value)}
+                  disabled={step === "processing"}
+                />
+                <div className="pay-field-row">
+                  <div>
+                    <label className="pay-label">Expiry</label>
+                    <input
+                      className="pay-input"
+                      placeholder="MM/YY"
+                      inputMode="numeric"
+                      value={expiry}
+                      onChange={(e) => setExpiry(formatExpiry(e.target.value))}
+                      disabled={step === "processing"}
+                    />
+                  </div>
+                  <div>
+                    <label className="pay-label">CVV</label>
+                    <input
+                      className="pay-input"
+                      type="password"
+                      placeholder="•••"
+                      maxLength={4}
+                      inputMode="numeric"
+                      value={cvv}
+                      onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))}
+                      disabled={step === "processing"}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {method === "cod" && (
               <div className="pay-cod-note">
                 📍 Pay in cash when you meet the seller
                 {listing.location ? ` at ${listing.location}` : ""}. No online payment needed.
               </div>
             )}
-
-            {error && <div className="modal-status error">{error}</div>}
 
             <div className="modal-actions">
               <button
@@ -177,7 +168,7 @@ export default function PaymentModal({ listing, onClose, onPaid }) {
                 type="button"
                 className="btn btn-primary"
                 onClick={handlePay}
-                disabled={step === "processing"}
+                disabled={!canPay || step === "processing"}
               >
                 {payLabel()}
               </button>
@@ -194,16 +185,10 @@ export default function PaymentModal({ listing, onClose, onPaid }) {
             <p className="modal-sub">
               {method === "cod"
                 ? `Pay ₹${total} in cash at pickup.`
-                : `₹${total} paid securely via ${method === "upi" ? "UPI" : "card"}.`}
+                : `₹${total} paid via ${method === "upi" ? "UPI" : "card"}`}
+              {" · "}Order {orderId}
             </p>
-            {result && (
-              <p className="pay-demo-note">
-                {result.paymentId ? `Payment ID: ${result.paymentId}` : ""}
-                {result.adminFee != null && result.sellerPayout != null
-                  ? `${result.paymentId ? " · " : ""}₹${(result.sellerPayout / 100).toFixed(2)} to seller · ₹${(result.adminFee / 100).toFixed(2)} platform fee`
-                  : ""}
-              </p>
-            )}
+            <p className="pay-demo-note">(Demo mode — no real transaction was made.)</p>
             <button className="btn btn-primary btn-block" onClick={onClose}>
               Done
             </button>

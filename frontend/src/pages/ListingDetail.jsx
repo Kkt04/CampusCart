@@ -142,16 +142,7 @@ export default function ListingDetail() {
         </div>
       </div>
       {showPayment && (
-        <PaymentModal
-          listing={listing}
-          onClose={() => setShowPayment(false)}
-          onPaid={() => {
-            api
-              .get(`/listings/${id}`)
-              .then((res) => setListing(res.data))
-              .catch(() => {});
-          }}
-        />
+        <PaymentModal listing={listing} onClose={() => setShowPayment(false)} />
       )}
     </div>
   );
