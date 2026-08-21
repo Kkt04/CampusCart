@@ -16,7 +16,7 @@ async function seed() {
 
   if (existingUser) {
     user = existingUser;
-    console.log("👤 Dummy user already exists:", user.email);
+    console.log("Dummy user already exists:", user.email);
   } else {
     const hashed = await bcrypt.hash("password123", 10);
     user = await User.create({
