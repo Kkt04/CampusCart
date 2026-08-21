@@ -27,7 +27,7 @@ async function seed() {
       hostelBlock: "Block C, Kailash Hostel",
       avatarColor: AVATAR_COLORS[2],
     });
-    console.log("✅ Created dummy user:", user.email, "/ password123");
+    console.log("Created dummy user:", user.email, "/ password123");
   }
 
   const existingListings = await Listing.countDocuments({ seller: user._id });
